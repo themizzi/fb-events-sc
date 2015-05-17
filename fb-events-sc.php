@@ -3,7 +3,7 @@
  * Plugin Name: FB Events SC
  * Plugin URI: http://themizzi/fb_events_sc
  * Description: Facebook Events Shortcode
- * Version: 1.0.1
+ * Version: 1.0.2
  * Author: Joe Mizzi
  * Author URI: http://themizzi.com
  * License: GPL2

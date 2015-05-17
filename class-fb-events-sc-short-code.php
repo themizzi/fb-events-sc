@@ -53,7 +53,12 @@ class FB_Events_SC_Short_Code {
 		} else {
 			$limit = null;
 		}
-		$events = $this->get_events( $atts['page_id'], $limit );
+		if ( isset( $atts['timezone'] ) && in_array( $atts['timezone'], timezone_identifiers_list() ) ) {
+			$timezone = $atts['timezone'];
+		} else {
+			$timezone = date_default_timezone_get();
+		}
+		$events = $this->get_events( $atts['page_id'], $timezone, $limit );
 		if ( $events ) {
 			return $this->get_mustache()->render('table', array(
 				'events' => $events
@@ -105,15 +110,19 @@ class FB_Events_SC_Short_Code {
 	 * @param $page_id
 	 * @return array|bool
 	 */
-	public function get_events( $page_id, $limit = null )
+	public function get_events( $page_id, $timezone, $limit = null )
 	{
 		if ($facebookEvents = $this->get_facebook_events( $page_id, $limit )) {
 			$events = [];
+			$utc = new DateTimeZone( 'UTC' );
+			$timezone = new DateTimeZone( $timezone );
 			$today = new DateTime();
+			$today->setTimezone( $timezone );
 			foreach ($facebookEvents as $facebookEvent) {
 				/** @var Facebook\GraphObject $facebookEvent */
-				$date = new DateTime( $facebookEvent->getProperty( 'start_time' ) );
-				if ( $date < $today ) {
+				$date = new DateTime( $facebookEvent->getProperty( 'start_time' ), $utc );
+				$date->setTimezone( $timezone );
+				if ( $date->format('Y-m-d') < $today->format('Y-m-d') ) {
 					break;
 				}
 				$events[] = array(
