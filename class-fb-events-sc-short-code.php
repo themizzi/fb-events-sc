@@ -48,7 +48,12 @@ class FB_Events_SC_Short_Code {
 		if ( !isset( $atts['page_id'] ) ) {
 			return false;
 		}
-		$events = $this->get_events( $atts['page_id'] );
+		if ( isset( $atts['limit'] ) && is_numeric( $atts['limit'] ) ) {
+            $limit = (int)$atts['limit'];
+		} else {
+			$limit = null;
+		}
+		$events = $this->get_events( $atts['page_id'], $limit );
 		if ( $events ) {
 			return $this->get_mustache()->render('table', array(
 				'events' => $events
@@ -64,7 +69,7 @@ class FB_Events_SC_Short_Code {
 	public function getFacebookSession()
 	{
 		if (!$this->_session) {
-			$this->_session = new FacebookSession($this->get_app_id() . '|' . $this->get_app_secret());
+			$this->_session = new FacebookSession( $this->get_app_id() . '|' . $this->get_app_secret() );
 		}
 		return $this->_session;
 	}
@@ -80,12 +85,17 @@ class FB_Events_SC_Short_Code {
 			'GET',
 			'/' . $page_id . '/events',
 			array(
-				'fields' => 'id,description,end_time,is_date_only,name,start_time,ticket_uri,timezone,place'
+				'fields' => 'id,description,end_time,is_date_only,name,start_time,ticket_uri,timezone,place',
+				'since'  => time()
 			)
 		);
 		try {
-			$response = $request->execute();
-			return $response->getGraphObjectList();
+			$objects = [];
+			do {
+				$response = $request->execute();
+				$objects = array_merge( $objects, $response->getGraphObjectList() );
+			} while ( $objects[count($objects) -1]->getProperty('start_time') >= date('Y-m-d') &&  $request = $response->getRequestForNextPage() );
+			return $objects;
 		} catch (Exception $e) {
 			return false;
 		}
@@ -95,20 +105,25 @@ class FB_Events_SC_Short_Code {
 	 * @param $page_id
 	 * @return array|bool
 	 */
-	public function get_events( $page_id )
+	public function get_events( $page_id, $limit = null )
 	{
-		if ($facebookEvents = $this->get_facebook_events( $page_id )) {
+		if ($facebookEvents = $this->get_facebook_events( $page_id, $limit )) {
 			$events = [];
+			$today = new DateTime();
 			foreach ($facebookEvents as $facebookEvent) {
 				/** @var Facebook\GraphObject $facebookEvent */
 				$date = new DateTime( $facebookEvent->getProperty( 'start_time' ) );
+				if ( $date < $today ) {
+					break;
+				}
 				$events[] = array(
 					'date' => $date->format( $this->get_date_format() ),
 					'title' => $facebookEvent->getProperty( 'name' ),
 					'link' => 'https://www.facebook.com/events/' . $facebookEvent->getProperty( 'id' )
 				);
 			}
-			return $events;
+			$result = array_reverse( $events );
+			return $limit ? array_slice( $result, 0, $limit ) : $result;
 		} else {
 			return false;
 		}
